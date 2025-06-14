@@ -1,83 +1,71 @@
-<script>
-  const form = document.getElementById('uploadForm');
-  const fileList = document.getElementById('fileList');
-  const warningMsg = document.getElementById('warningMsg');
-  const MAX_FILES_GUEST = 15;
+const express = require('express');
+const multer = require('multer');
+const fs = require('fs');
+const path = require('path');
+const cors = require('cors');
 
-  // Initial file load
-  window.addEventListener('DOMContentLoaded', loadFiles);
+const app = express();
+const PORT = 3000;
 
-  // Upload handler
-  form.addEventListener('submit', async (e) => {
-    e.preventDefault();
+app.use(cors());
+app.use(express.static('public'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-    const guestUploads = parseInt(localStorage.getItem('guestUploads') || '0');
-    if (guestUploads >= MAX_FILES_GUEST) {
-      warningMsg.textContent = '🚫 Guest upload limit reached (15 files). Please log in.';
-      return;
-    }
+// Create uploads folder if it doesn't exist
+if (!fs.existsSync('uploads')) {
+  fs.mkdirSync('uploads');
+}
 
-    const formData = new FormData(form);
-    try {
-      const res = await fetch('/upload', { method: 'POST', body: formData });
-      const text = await res.text();
-      alert(text);
+// Configure multer for file uploads
+const allowedMimeTypes = [
+  'image/png', 'image/jpeg', 'text/plain',
+  'application/pdf', 'application/zip'
+];
 
-      // Update local count and reset UI
-      localStorage.setItem('guestUploads', guestUploads + 1);
-      warningMsg.textContent = '';
-      form.reset();
-      loadFiles();
-    } catch (err) {
-      console.error(err);
-      alert('❌ Upload failed. Try again.');
-    }
+const storage = multer.diskStorage({
+  destination: 'uploads/',
+  filename: (req, file, cb) => {
+    const uniqueName = Date.now() + '-' + file.originalname;
+    cb(null, uniqueName);
+  }
+});
+
+const fileFilter = (req, file, cb) => {
+  if (allowedMimeTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Invalid file type'), false);
+  }
+};
+
+const upload = multer({ storage, fileFilter });
+
+// POST /upload → Uploads the file
+app.post('/upload', upload.single('file'), (req, res) => {
+  if (!req.file) {
+    return res.status(400).send('No file uploaded or file type not allowed.');
+  }
+  res.send('File uploaded successfully!');
+});
+
+// GET /files → List uploaded files
+app.get('/files', (req, res) => {
+  fs.readdir('uploads', (err, files) => {
+    if (err) return res.status(500).send('Unable to list files.');
+    res.json(files);
   });
+});
 
-  // Load uploaded files
-  async function loadFiles() {
-    try {
-      const res = await fetch('/files');
-      const files = await res.json();
-      if (!Array.isArray(files)) throw new Error('Invalid file list');
+// DELETE /delete/:filename → Deletes a file
+app.delete('/delete/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filepath = path.join(__dirname, 'uploads', filename);
+  fs.unlink(filepath, (err) => {
+    if (err) return res.status(500).send('Could not delete file.');
+    res.send('File deleted.');
+  });
+});
 
-      fileList.innerHTML = '<h2>Uploaded Files:</h2>' + files.map(f => `
-        <div class="file-item">
-          <div class="file-link">
-            <strong>${f}</strong><br>
-            <a href="/uploads/${f}" target="_blank">Download</a> |
-            <a href="#" onclick="copyLink(event, '${f}')">Copy Link</a>
-          </div>
-          <button class="button" style="padding: 5px 10px; font-size: 0.8rem;" onclick="deleteFile('${f}')">Delete</button>
-        </div>
-      `).join('');
-    } catch (err) {
-      console.error(err);
-      fileList.innerHTML = '<p>⚠️ Failed to load files. Try refreshing.</p>';
-    }
-  }
-
-  // File deletion
-  async function deleteFile(filename) {
-    if (!confirm(`Delete ${filename}?`)) return;
-    try {
-      const res = await fetch('/delete/' + filename, { method: 'DELETE' });
-      const text = await res.text();
-      alert(text);
-      loadFiles();
-    } catch (err) {
-      alert('❌ Failed to delete.');
-    }
-  }
-
-  // Copy full link
-  function copyLink(e, filename) {
-    e.preventDefault();
-    const fullURL = `${window.location.origin}/uploads/${filename}`;
-    navigator.clipboard.writeText(fullURL).then(() => {
-      alert('🔗 Link copied to clipboard:\n' + fullURL);
-    }).catch(() => {
-      alert('❌ Failed to copy link.');
-    });
-  }
-</script>
+app.listen(PORT, () => {
+  console.log(`🚀 WhaleDrop backend running at http://localhost:${PORT}`);
+});
