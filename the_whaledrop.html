@@ -1,0 +1,154 @@
+<!-- The WhaleDrop - index.html (Advanced UI + Shareable Links) -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>The WhaleDrop™</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(to bottom right, #b2ebf2, #ffffff);
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 4rem auto;
+      background: #ffffffee;
+      padding: 3rem;
+      border-radius: 20px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      text-align: center;
+    }
+    h1 {
+      font-size: 3rem;
+      color: #004d40;
+      margin-bottom: 2rem;
+    }
+    input[type="file"] {
+      padding: 1rem;
+      border: 2px dashed #00796b;
+      border-radius: 10px;
+      width: 80%;
+      margin-bottom: 1rem;
+    }
+    .button {
+      background-color: #00796b;
+      color: white;
+      border: none;
+      padding: 0.8rem 2rem;
+      border-radius: 10px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    .button:hover {
+      background-color: #004d40;
+    }
+    .file-list {
+      margin-top: 2rem;
+      text-align: left;
+    }
+    .file-item {
+      background: #f1f1f1;
+      padding: 0.8rem;
+      border-radius: 10px;
+      margin-bottom: 0.5rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .file-link {
+      word-break: break-all;
+    }
+    .warning {
+      color: red;
+      font-weight: bold;
+      margin-top: 1rem;
+    }
+    footer {
+      text-align: center;
+      margin-top: 4rem;
+      font-size: 0.9rem;
+      color: #555;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🐋 The WhaleDrop™</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+      <input type="file" name="file" required />
+      <br>
+      <button class="button" type="submit">Upload File</button>
+    </form>
+    <div id="warningMsg" class="warning"></div>
+    <div class="file-list" id="fileList"></div>
+  </div>
+
+
+  <script>
+    const form = document.getElementById('uploadForm');
+    const fileList = document.getElementById('fileList');
+    const warningMsg = document.getElementById('warningMsg');
+    const MAX_FILES_GUEST = 15;
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      let guestUploads = parseInt(localStorage.getItem('guestUploads') || '0');
+
+      if (guestUploads >= MAX_FILES_GUEST) {
+        warningMsg.textContent = 'You have reached the guest upload limit. Please log in to continue.';
+        return;
+      }
+
+      const formData = new FormData(form);
+      const res = await fetch('/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const text = await res.text();
+      alert(text);
+      localStorage.setItem('guestUploads', guestUploads + 1);
+      warningMsg.textContent = '';
+      form.reset();
+      loadFiles();
+    });
+
+    async function loadFiles() {
+      const res = await fetch('/files');
+      const files = await res.json();
+      fileList.innerHTML = '<h2>Uploaded Files:</h2>' + files.map(f => `
+        <div class="file-item">
+          <div class="file-link">
+            <strong>${f}</strong><br>
+            <a href="/uploads/${f}" target="_blank">Download</a> |
+            <a href="/uploads/${f}" target="_blank" onclick="copyLink(event, '/uploads/${f}')">Copy Link</a>
+          </div>
+          <button class="button" style="padding: 5px 10px; font-size: 0.8rem;" onclick="deleteFile('${f}')">Delete</button>
+        </div>
+      `).join('');
+    }
+
+    async function deleteFile(filename) {
+      const res = await fetch('/delete/' + filename, { method: 'DELETE' });
+      alert(await res.text());
+      loadFiles();
+    }
+
+    function copyLink(e, url) {
+      e.preventDefault();
+      const fullURL = window.location.origin + url;
+      navigator.clipboard.writeText(fullURL).then(() => {
+        alert("Link copied: " + fullURL);
+      });
+    }
+
+    loadFiles();
+  </script>
+</body>
+</html>
