@@ -1,4 +1,4 @@
-<!-- The WhaleDrop - index.html (Connected to Replit Backend) -->
+<!-- The WhaleDrop - index.html (Guest Isolation + Private Files) -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -89,16 +89,20 @@
   </div>
 
   <footer>
-    Nothing to sea here 🐋🐳
+    &copy; 2025 The WhaleDrop - Secure & Simple File Sharing
   </footer>
 
   <script>
-    const backendURL = 'https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev';
-
     const form = document.getElementById('uploadForm');
     const fileList = document.getElementById('fileList');
     const warningMsg = document.getElementById('warningMsg');
     const MAX_FILES_GUEST = 15;
+
+    // Auto-generate guest ID if not present
+    if (!localStorage.getItem('userId')) {
+      localStorage.setItem('userId', 'guest-' + Math.random().toString(36).substr(2, 9));
+    }
+    const userId = localStorage.getItem('userId');
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -111,7 +115,9 @@
       }
 
       const formData = new FormData(form);
-      const res = await fetch(`${backendURL}/upload`, {
+      formData.append('userId', userId);
+
+      const res = await fetch('https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev/upload', {
         method: 'POST',
         body: formData
       });
@@ -125,14 +131,14 @@
     });
 
     async function loadFiles() {
-      const res = await fetch(`${backendURL}/files`);
+      const res = await fetch('https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev/files?userId=' + userId);
       const files = await res.json();
       fileList.innerHTML = '<h2>Uploaded Files:</h2>' + files.map(f => `
         <div class="file-item">
           <div class="file-link">
             <strong>${f}</strong><br>
-            <a href="${backendURL}/uploads/${f}" target="_blank">Download</a> |
-            <a href="${backendURL}/uploads/${f}" target="_blank" onclick="copyLink(event, '${backendURL}/uploads/${f}')">Copy Link</a>
+            <a href="https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev/uploads/${userId}/${f}" target="_blank">Download</a> |
+            <a href="#" onclick="copyLink(event, '${userId}', '${f}')">Copy Link</a>
           </div>
           <button class="button" style="padding: 5px 10px; font-size: 0.8rem;" onclick="deleteFile('${f}')">Delete</button>
         </div>
@@ -140,15 +146,18 @@
     }
 
     async function deleteFile(filename) {
-      const res = await fetch(`${backendURL}/delete/` + filename, { method: 'DELETE' });
+      const res = await fetch(`https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev/delete/${userId}/${filename}`, {
+        method: 'DELETE'
+      });
       alert(await res.text());
       loadFiles();
     }
 
-    function copyLink(e, url) {
+    function copyLink(e, userId, filename) {
       e.preventDefault();
-      navigator.clipboard.writeText(url).then(() => {
-        alert("Link copied: " + url);
+      const fullURL = `https://0789ff58-1d6a-4d77-9b09-187e435551e8-00-pptw80p71iim.kirk.replit.dev/uploads/${userId}/${filename}`;
+      navigator.clipboard.writeText(fullURL).then(() => {
+        alert("Link copied: " + fullURL);
       });
     }
 
